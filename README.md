@@ -4,7 +4,7 @@ In this project you will find an example of a simple Behavior Tree implemented i
 
 You can find the basic tree and node module under `/modules/tree.lua` and `/modules/node.lua`. Example code is in `/main/main_bird.script`.
 
-An video showing this example can be found at: https://www.youtube.com/watch?v=42PGvmFFeWI
+A video showing this example can be found at: https://www.youtube.com/watch?v=42PGvmFFeWI
 
 
 ## What can the Behavior Tree do?
