@@ -1,0 +1,210 @@
+local tree = require "modules.tree"
+local node = require "modules.node"
+
+
+-------------------------------------------
+--
+-- Evaluators
+--
+-------------------------------------------
+local function moveToBird(self)
+
+	-- Initialize the variables for this Evaluator
+	if not self.is_init then
+		self.currentWayPoint = 1
+		self.waitTime = 1.0 -- in seconds
+		self.waitCounter = waitTime
+		self.waiting = false
+		self.is_init = true
+		self.speed = 4
+	end
+
+
+	-- Evaluate 
+	if self.waiting == true then
+
+		self.waitCounter = self.waitCounter - node.dt;
+
+		if self.waitCounter <= 0.0 then			
+			self.waiting = false
+		end
+
+	else
+
+		-- If there is a target already, no need finding a new one
+		local target = self:getData("target")
+		if target then
+			-- Don'tmove to a new target since we are still working at this target
+			return node.SUCCESS
+		end
+
+		----------------------------------------------
+		-- Find a new target to eat with
+		----------------------------------------------
+		local wp = self.waypoints[ self.currentWayPoint ]
+		local pos = go.get_position()
+
+		if self.walking then
+			if vmath.length( pos - wp ) < self.speed then
+				-- A target was reached
+				wp.z = pos.z
+				go.set_position(wp)
+				self.waitCounter = self.waitTime
+				self.waiting = true
+
+				-- Prepare the next target
+				self.currentWayPoint = math.fmod(self.currentWayPoint + 1, #self.waypoints)
+				self.currentWayPoint = math.max(1, self.currentWayPoint)
+
+				self.walking = nil
+				self.move.x, self.move.y = 0, 0
+
+				-- Set the target
+				self:setData("target", self.currentWayPoint)
+
+				return node.SUCCESS
+			else
+				-- Move the object
+				pos = pos + self.move
+				go.set_position(pos)
+			end
+		elseif not self.walking then
+
+			local angle = math.atan2(pos.x - wp.x, wp.y - pos.y)
+
+			-- set rotation as a quaternion
+			go.set_rotation(vmath.quat_rotation_z(angle))
+
+			-- Movement amount normalized			
+			self.move = vmath.normalize( wp - pos ) * self.speed
+			self.move.z = 0
+			self.walking = true
+
+			-- Show the bird flying
+			sprite.play_flipbook("#sprite", hash("fly"))
+		end
+	end
+
+	return node.RUNNING
+end
+
+
+-------------------------------------------
+--
+-- Evaluators
+--
+-------------------------------------------
+local function eatBirdSeed(self)
+
+	-- Initialize the variables for this Evaluator	
+	if not self.is_init then
+		self.eat_loops = 2
+		self.is_init = true
+	end
+
+	-- Evaluate 
+	if not self.is_eating then
+		self.is_eating = true
+		self.eatTimer = 1.0
+		sprite.play_flipbook("#sprite", hash("peck"), 
+		function()
+			sprite.play_flipbook("#sprite", hash("idle")) 			
+		end)
+	else
+
+		-- Time counter
+		self.eatTimer = self.eatTimer - node.dt
+
+		if self.eatTimer <= 0.0 then
+			self.is_eating = nil
+			self.eatTimer = nil
+
+			-- Clear the target so player can move to the next one
+			self.eat_loops = self.eat_loops - 1
+			if self.eat_loops <= 0 then
+				self.is_init = nil
+				self:clearData("target")
+			end
+		end
+	end
+
+	return node.RUNNING
+end
+
+
+--------------------------------------
+--
+-- Required for Task: type, evaluator (function to call)
+-- All other args will be added to the table as value.
+-- IE: 'waypoints' not defined but expected. 
+--	   arg# (arg1, arg2, etc) = { name = 'entry's name", value = "entry's value" }
+-- Exaple: { nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints }, arg2 = { name = hp, value = 20 } }
+--
+--------------------------------------
+local function SetupTree(self)
+
+	local treeBuilder = {
+		nodeType = "limiter",
+		arg1 = { name = "cycles", value = 1 },
+		children = {
+			[1] = {
+				nodeType = "sequence",
+				children = { 
+					{ nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints } },
+					{ nodeType = "task", evaluator = eatBirdSeed },
+				}
+			} 
+		}
+	}
+
+	return node.new(treeBuilder)
+end
+
+
+-------------------------------------
+-- Init the script
+-------------------------------------
+function init(self)
+
+	-- Can start the tree processing here, but 'waypoints' are required
+	-- And are sent via messaging so it gets start in the on_message() function
+	-- self.root = tree.start(self, SetupTree )		
+
+end
+
+
+-------------------------------------
+-- Update function
+-------------------------------------
+function update(self, dt)
+
+	-- Call the update function so it triggers a constant Evaluation()	
+	if self.root then
+		-- Need to track dt
+		node.dt = dt				
+		-- Call the Tree's update function
+		self.root:update()
+	end
+
+	-- Each 'Evaluator()' function needs to control positioning
+	local pos = go.get_position()
+
+	-- Camera adjust acording to the scripted position of this GO
+	go.set_position( vmath.vector3(pos.x - 568, pos.y - 320, 0), "camera")
+
+end
+
+
+-------------------------------------
+-- 
+-------------------------------------
+function on_message(self, message_id, message, sender)
+	if message_id == hash("waypoints") then
+		self.waypoints = message.points
+
+		-- Once waypoints are received, start the tree processing
+		self.root = tree.start(self, SetupTree )		
+	end
+end
+
+

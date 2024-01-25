@@ -1,0 +1,13 @@
+/.internal
+/build
+/GuardAI
+/_BehaviorTree
+.externalToolBuilders
+.DS_Store
+Thumbs.db
+.lock-wscript
+*.pyc
+*.zip
+.project
+.cproject
+builtins

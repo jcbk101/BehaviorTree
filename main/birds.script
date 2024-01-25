@@ -1,0 +1,15 @@
+go.property("count", 0)
+
+function init(self)
+
+	local waypoints = {}
+	for i = 1, self.count do
+		waypoints[i] = go.get_position("/bird" .. i)
+	end
+
+	-- Send the list over to main bird
+	msg.post("/main_bird", "waypoints", { points = waypoints } )
+
+end
+
+
