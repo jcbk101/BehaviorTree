@@ -312,8 +312,11 @@ end
 ----------------------------------
 -- Node clean up
 ----------------------------------
-function final(self)
-	M.sharedData = nil
+function M.final(self)
+	--M.sharedData = nil
+	for key in pairs(M.sharedData) do
+		M.sharedData[key] = nil
+	end
 end
 
 return M

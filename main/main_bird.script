@@ -147,7 +147,7 @@ local function doCountDown(self)
 
 	-- Show the count down
 	label.set_text("/time#counter", math.floor(self.countDownTimer))				
-		
+
 	return node.RUNNING
 end
 
@@ -181,7 +181,7 @@ local function SetupTree(self)
 			} 						
 		}
 	}
-	
+
 	return node.new(treeBuilder)
 end
 
@@ -233,3 +233,7 @@ function on_message(self, message_id, message, sender)
 end
 
 
+function final(self)
+	self.waypoints = nil
+	node.final() 
+end
