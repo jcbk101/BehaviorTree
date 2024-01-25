@@ -1,8 +1,8 @@
----------------------------------------------
+---------------------------------------------------
 -- This module is a stand alone 'class'
 -- All other modules are created from this
--- All functions and data are stateless
----------------------------------------------
+-- All functions and data are (mostly) stateless
+---------------------------------------------------
 
 local M = {}
 
