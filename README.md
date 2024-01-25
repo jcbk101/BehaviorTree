@@ -25,7 +25,7 @@ In Defold, each script that wishes to utilize the BT should contain an `function
 In this implementation, manual positioning of any moving objects that are altered by a Node / Task should be handled in the node / task itself. The main lua module is assigned a variable called `node.dt`
 which is used as a global-to-the-behavior-tree variable.
 
-There is also a single data context table (array) for every task to access. Naming variables should be cared for in order to maintain correct functioning. 
+There is also a single data context table (array) called `node.sharedData`, for every task to access. Naming variables should be cared for in order to maintain correct functioning. 
 
 
 ### Can this be production ready?
