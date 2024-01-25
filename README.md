@@ -11,8 +11,8 @@ A video showing this example can be found at: https://www.youtube.com/watch?v=42
 
 ### Example: Script file
 `./main/main_bird.script`
-- A 5 second count down begins.
-- At 0, the bird begins to fly toeach static bird (waypoints).
+- A five (5) second count down begins.
+- At zero (0) seconds, the bird begins to fly to each static bird (waypoints).
 - After reaching a static bird, the main bird will simulate eating.
 - After a second of eating, the bird flies to the next waypoint.
 
