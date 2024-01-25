@@ -30,6 +30,6 @@ There is also a single data context table (array) called `node.sharedData`, for 
 
 ### Can this be production ready?
 
-I've have used this implementation in my current game, and I haven't run into any issues thus far. I believe it to be flexible, and if you know what you are doing, 
+I have used this implementation in my current game, and I haven't run into any issues thus far. I believe it to be flexible, and if you know what you are doing, 
 you can make it work to your liking. Feel free to use / modify it as you see fit.
 
