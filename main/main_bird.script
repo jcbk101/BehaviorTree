@@ -3,9 +3,7 @@ local node = require "modules.node"
 
 
 -------------------------------------------
---
--- Evaluators
---
+-- Evaluator
 -------------------------------------------
 local function moveToBird(self)
 
@@ -72,7 +70,7 @@ local function moveToBird(self)
 
 			local angle = math.atan2(pos.x - wp.x, wp.y - pos.y)
 
-			-- set rotation as a quaternion
+			-- Set rotation as a quaternion
 			go.set_rotation(vmath.quat_rotation_z(angle))
 
 			-- Movement amount normalized			
@@ -90,9 +88,7 @@ end
 
 
 -------------------------------------------
---
--- Evaluators
---
+-- Evaluator
 -------------------------------------------
 local function eatBirdSeed(self)
 
@@ -111,7 +107,6 @@ local function eatBirdSeed(self)
 			sprite.play_flipbook("#sprite", hash("idle")) 			
 		end)
 	else
-
 		-- Time counter
 		self.eatTimer = self.eatTimer - node.dt
 
@@ -132,31 +127,61 @@ local function eatBirdSeed(self)
 end
 
 
---------------------------------------
+-------------------------------------------
+-- Evaluator
+-------------------------------------------
+local function doCountDown(self)
+
+	if not self.countDownTimer then
+		self.countDownTimer = 1.0
+	end
+
+	-- Time counter
+	self.countDownTimer = self.countDownTimer - node.dt
+
+	if self.countDownTimer <= 0.0 then
+		self.countDownTimer = 0
+		label.set_text("/time#counter", "")
+		return node.FAILURE
+	end
+
+	-- Show the count down
+	label.set_text("/time#counter", math.floor(self.countDownTimer))				
+		
+	return node.RUNNING
+end
+
+
+
+----------------------------------------------------------------------------
 --
 -- Required for Task: type, evaluator (function to call)
 -- All other args will be added to the table as value.
 -- IE: 'waypoints' not defined but expected. 
---	   arg# (arg1, arg2, etc) = { name = 'entry's name", value = "entry's value" }
--- Exaple: { nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints }, arg2 = { name = hp, value = 20 } }
+--	   arg# (arg1, arg2, etc) = { name = 'entry's name", value = "entry's value" or #value }
+-- Exaple: { nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints }, arg2 = { name = "hp", value = 20 } }
 --
---------------------------------------
+----------------------------------------------------------------------------
 local function SetupTree(self)
 
 	local treeBuilder = {
-		nodeType = "limiter",
-		arg1 = { name = "cycles", value = 1 },
+		nodeType = "selector",  -- This is the root node
 		children = {
 			[1] = {
+				nodeType = "task", 
+				evaluator = doCountDown,
+				arg1 = { name = "countDownTimer", value = 5.0 }
+			} ,
+			[2] = {
 				nodeType = "sequence",
 				children = { 
 					{ nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints } },
 					{ nodeType = "task", evaluator = eatBirdSeed },
 				}
-			} 
+			} 						
 		}
 	}
-
+	
 	return node.new(treeBuilder)
 end
 
@@ -169,7 +194,7 @@ function init(self)
 	-- Can start the tree processing here, but 'waypoints' are required
 	-- And are sent via messaging so it gets start in the on_message() function
 	-- self.root = tree.start(self, SetupTree )		
-
+	label.set_text("/time#counter", "")
 end
 
 

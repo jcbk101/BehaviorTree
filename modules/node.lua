@@ -309,4 +309,11 @@ function M.new( nodeInfo )
 	return Node
 end
 
+----------------------------------
+-- Node clean up
+----------------------------------
+function final(self)
+	M.sharedData = nil
+end
+
 return M
