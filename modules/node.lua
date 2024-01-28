@@ -7,9 +7,10 @@
 local M = {}
 
 -- Each instance should have all of the below
-M.FAILURE = -1		
 M.RUNNING = 1
 M.SUCCESS = 2
+M.FAILURE = 3
+M.TERMINATE = -1
 
 -- A way to make dt global to all Nodes
 M.dt = 0.0
@@ -20,6 +21,39 @@ M.sharedData = {}
 
 -- Need to init the random number generator
 math.randomseed(os.clock())
+
+
+-------------------------------------
+-- Load children per Node
+-------------------------------------
+local function loadChildren( Node, children, size )
+
+	-- Construct child nodes
+	if size and type(size) == "number" then
+		for i = 1, size do
+			if children[i] then
+				Node.children[i] = M.new(children[i])
+			end
+		end
+	else		
+		for i = 1, #children do			
+			Node.children[i] = M.new(nodeInfo.children[i])
+		end	
+	end			
+end
+
+
+-------------------------------------
+-- Load children per Node
+-------------------------------------
+local function loadArguments( Node, nodeInfo )
+	local i = 1
+	while nodeInfo["arg" ..i] ~= nil do 
+		Node[nodeInfo["arg" ..i].name] = nodeInfo["arg" ..i].value
+		i = i + 1
+	end
+end
+
 
 ----------------------------------------------------------------------
 -- Node class constructor. This way is not memory friendly. Pass a
@@ -46,10 +80,7 @@ function M.new( nodeInfo )
 		Node.children = {}
 
 		-- Recursively construct child nodes
-		for i = 1, #nodeInfo.children do			
-			Node.children[i] = M.new(nodeInfo.children[i])
-		end
-
+		loadChildren(Node, nodeInfo.children)
 		--
 		Node.type = hash("selector")
 
@@ -66,6 +97,8 @@ function M.new( nodeInfo )
 					return M.SUCCESS
 				elseif result == M.RUNNING then
 					return M.RUNNING
+				elseif result == M.TERMINATE then
+					return M.TERMINATE			
 				end
 			end
 
@@ -84,15 +117,14 @@ function M.new( nodeInfo )
 		Node.children = {}
 
 		-- Recursively construct child nodes
-		for i = 1, #nodeInfo.children do			
-			Node.children[i] = M.new(nodeInfo.children[i])
-		end
+		loadChildren(Node, nodeInfo.children)
 
 		Node.type = hash("sequence")
 
 		function Node:Evaluate()
 
 			local anyChildRunning = nil
+			local result = nil
 
 			for node = 1, #self.children do
 				local result = self.children[node]:Evaluate()
@@ -104,7 +136,10 @@ function M.new( nodeInfo )
 					-- Continue testing nodes until all succeed or one fails
 					result = nil
 				elseif result == M.RUNNING then
-					return M.RUNNING
+					--return M.RUNNING
+					anyChildRunning = true
+				elseif result == M.TERMINATE then
+					return M.TERMINATE													
 				else
 					-- Defaults to return SUCCESS
 					return M.SUCCESS
@@ -112,7 +147,7 @@ function M.new( nodeInfo )
 			end
 
 			-- All nodes succeeded
-			return M.SUCCESS
+			return (anyChildRunning == true) and M.RUNNING or M.SUCCESS
 		end	
 
 		------------------------------------------------------------------------
@@ -124,7 +159,7 @@ function M.new( nodeInfo )
 		-- It would be a good idea to test for children to process
 		Node.type = hash("limiter")
 		-- Single child for this Evaluator node
-		Node.children = { M.new(nodeInfo.children[1]) }
+		loadChildren(Node, nodeInfo.children, 1)
 
 		-- Create and init the counter variable
 		Node.key = "limit_" .. string.sub(tostring(Node), 8)
@@ -164,13 +199,9 @@ function M.new( nodeInfo )
 	elseif nodeType == "random" then
 		-- It would be a good idea to test for children to process
 		Node.type = hash("random")
-		-- Single child for this Evaluator node
-		Node.children = { M.new(nodeInfo.children[1]) }
 
 		-- Recursively construct child nodes
-		for i = 1, #nodeInfo.children do			
-			Node.children[i] = M.new(nodeInfo.children[i])
-		end			
+		loadChildren(Node, nodeInfo.children)
 
 		function Node:Evaluate()
 			local node = math.random(#self.children)
@@ -180,6 +211,8 @@ function M.new( nodeInfo )
 				return M.SUCCESS
 			elseif result == M.FAILURE then
 				return M.FAILURE
+			elseif result == M.TERMINATE then
+				return M.TERMINATE			
 			else
 				return M.RUNNING
 			end 
@@ -194,7 +227,7 @@ function M.new( nodeInfo )
 		-- It would be a good idea to test for children to process
 		Node.type = hash("negate")
 		-- Single child for this Evaluator node
-		Node.children = { M.new(nodeInfo.children[1]) }
+		loadChildren(Node, nodeInfo.children, 1)
 
 		function Node:Evaluate()
 			local result = self.children[node]:Evaluate()
@@ -203,6 +236,8 @@ function M.new( nodeInfo )
 				return M.SUCCESS
 			elseif result == M.SUCCESS then
 				return M.FAILURE
+			elseif result == M.TERMINATE then
+				return M.TERMINATE			
 			else
 				return M.RUNNING
 			end 
@@ -217,12 +252,10 @@ function M.new( nodeInfo )
 		Node.children = {}
 
 		-- Recursively construct child nodes
-		for i = 1, #nodeInfo.children do			
-			Node.children[i] = M.new(nodeInfo.children[i])
-		end			
-
-		----------------------------
+		loadChildren(Node, nodeInfo.children)
+		--
 		Node.type = hash(nodeType)
+
 		if Node.type == hash("failure") then
 			Node.STATE = M.FAILURE
 		else
@@ -235,6 +268,8 @@ function M.new( nodeInfo )
 
 				if result == M.RUNNING then
 					return M.RUNNING
+				elseif result == M.TERMINATE then
+					return M.TERMINATE			
 				else
 					-- Defaults to return SUCCESS or FAILURE
 					return self.STATE
@@ -262,11 +297,7 @@ function M.new( nodeInfo )
 		-- added to the table by name & value
 		-- As long as they are in numerical order
 		-------------------------------------------
-		local i = 1
-		while nodeInfo["arg" ..i] ~= nil do 
-			Node[nodeInfo["arg" ..i].name] = nodeInfo["arg" ..i].value
-			i = i + 1
-		end
+		loadArguments(Node, nodeInfo)
 	end
 
 
@@ -313,7 +344,6 @@ end
 -- Node clean up
 ----------------------------------
 function M.final(self)
-	--M.sharedData = nil
 	for key in pairs(M.sharedData) do
 		M.sharedData[key] = nil
 	end
