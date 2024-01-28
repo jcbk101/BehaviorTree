@@ -21,7 +21,7 @@ function M.start( self, callback )
 	----------------------------------
 	-- Tree update
 	----------------------------------
-	function Tree:update()
+	function Tree:update(dt)
 
 		-- This should be placed in the controller script's update function
 		-- This will allow the tree to be constantly monitored
@@ -35,7 +35,7 @@ function M.start( self, callback )
 			end
 		end
 		--]]
-		Tree:Evaluate()
+		Tree:Evaluate(dt)
 
 	end
 

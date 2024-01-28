@@ -37,7 +37,7 @@ local function loadChildren( Node, children, size )
 		end
 	else		
 		for i = 1, #children do			
-			Node.children[i] = M.new(nodeInfo.children[i])
+			Node.children[i] = M.new(children[i])
 		end	
 	end			
 end
@@ -124,20 +124,16 @@ function M.new( nodeInfo )
 		function Node:Evaluate(dt)
 
 			local anyChildRunning = nil
-			local result = nil
 
 			for node = 1, #self.children do
 				local result = self.children[node]:Evaluate(dt)
 
 				if result == M.FAILURE then
-					-- Exit sequencing with a failure code
 					return M.FAILURE
 				elseif result == M.SUCCESS then
 					-- Continue testing nodes until all succeed or one fails
-					result = nil
 				elseif result == M.RUNNING then
-					--return M.RUNNING
-					anyChildRunning = true
+					return M.RUNNING
 				elseif result == M.TERMINATE then
 					return M.TERMINATE													
 				else
@@ -147,7 +143,7 @@ function M.new( nodeInfo )
 			end
 
 			-- All nodes succeeded
-			return (anyChildRunning == true) and M.RUNNING or M.SUCCESS
+			return M.SUCCESS
 		end	
 
 		------------------------------------------------------------------------
@@ -203,7 +199,7 @@ function M.new( nodeInfo )
 		-- Recursively construct child nodes
 		loadChildren(Node, nodeInfo.children)
 
-		function Node:Evaluate(dt`)
+		function Node:Evaluate(dt)
 			local node = math.random(#self.children)
 			local result = self.children[node]:Evaluate(dt)
 
