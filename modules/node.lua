@@ -84,12 +84,12 @@ function M.new( nodeInfo )
 		--
 		Node.type = hash("selector")
 
-		function Node:Evaluate()
+		function Node:Evaluate(dt)
 
 			-- Search the children and test the results of each action
 			-- Requested. Return results based on the result from that node's Evaluate() function
 			for node = 1, #self.children do
-				local result = self.children[node]:Evaluate()
+				local result = self.children[node]:Evaluate(dt)
 
 				-- Evaluate the node's test using it's own evaluator
 				-- Default response is FAILURE, so test the next node
@@ -121,13 +121,13 @@ function M.new( nodeInfo )
 
 		Node.type = hash("sequence")
 
-		function Node:Evaluate()
+		function Node:Evaluate(dt)
 
 			local anyChildRunning = nil
 			local result = nil
 
 			for node = 1, #self.children do
-				local result = self.children[node]:Evaluate()
+				local result = self.children[node]:Evaluate(dt)
 
 				if result == M.FAILURE then
 					-- Exit sequencing with a failure code
@@ -159,7 +159,7 @@ function M.new( nodeInfo )
 		-- It would be a good idea to test for children to process
 		Node.type = hash("limiter")
 		-- Single child for this Evaluator node
-		loadChildren(Node, nodeInfo.children, 1)
+		Node.child = M.new(nodeInfo.child)
 
 		-- Create and init the counter variable
 		Node.key = "limit_" .. string.sub(tostring(Node), 8)
@@ -175,7 +175,7 @@ function M.new( nodeInfo )
 		-------------------------------------------
 		--
 		-------------------------------------------		
-		function Node:Evaluate()
+		function Node:Evaluate(dt)
 			local count = self:getData(self.key)
 
 			if count == nil then
@@ -184,7 +184,7 @@ function M.new( nodeInfo )
 
 			if count < self.max_count then
 				self:setData(self.key, count + 1)
-				return self.children[1]:Evaluate()
+				return self.child:Evaluate(dt)
 			else
 				-- Once failure is determined, the child node never runs again
 				return M.FAILURE
@@ -203,9 +203,9 @@ function M.new( nodeInfo )
 		-- Recursively construct child nodes
 		loadChildren(Node, nodeInfo.children)
 
-		function Node:Evaluate()
+		function Node:Evaluate(dt`)
 			local node = math.random(#self.children)
-			local result = self.children[node]:Evaluate()
+			local result = self.children[node]:Evaluate(dt)
 
 			if result == M.SUCCESS then
 				return M.SUCCESS
@@ -227,10 +227,10 @@ function M.new( nodeInfo )
 		-- It would be a good idea to test for children to process
 		Node.type = hash("negate")
 		-- Single child for this Evaluator node
-		loadChildren(Node, nodeInfo.children, 1)
+		Node.child = M.new(nodeInfo.child)
 
-		function Node:Evaluate()
-			local result = self.children[node]:Evaluate()
+		function Node:Evaluate(dt)
+			local result = self.child:Evaluate(dt)
 
 			if result == M.FAILURE then
 				return M.SUCCESS
@@ -249,10 +249,8 @@ function M.new( nodeInfo )
 		------------------------------------------------------------------------				
 	elseif nodeType == "success" or nodeType == "failure" then
 		-- It would be a good idea to test for children to process
-		Node.children = {}
-
-		-- Recursively construct child nodes
-		loadChildren(Node, nodeInfo.children)
+		-- Single child for this Evaluator node
+		Node.child = M.new(nodeInfo.child)		
 		--
 		Node.type = hash(nodeType)
 
@@ -262,19 +260,17 @@ function M.new( nodeInfo )
 			Node.STATE = M.SUCCESS
 		end
 
-		function Node:Evaluate()
-			for node = 1, #self.children do
-				local result = self.children[node]:Evaluate()
+		function Node:Evaluate(dt)
+			local result = self.child:Evaluate(dt)
 
-				if result == M.RUNNING then
-					return M.RUNNING
-				elseif result == M.TERMINATE then
-					return M.TERMINATE			
-				else
-					-- Defaults to return SUCCESS or FAILURE
-					return self.STATE
-				end 
-			end
+			if result == M.RUNNING then
+				return M.RUNNING
+			elseif result == M.TERMINATE then
+				return M.TERMINATE			
+			else
+				-- Defaults to return SUCCESS or FAILURE
+				return self.STATE
+			end 
 		end
 	else
 		------------------------------------------------------------------------
