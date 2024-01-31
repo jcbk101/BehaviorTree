@@ -10,6 +10,7 @@ local M = {}
 M.RUNNING = 1
 M.SUCCESS = 2
 M.FAILURE = 3
+M.CONTINUE = 4
 M.TERMINATE = -1
 
 -- A way to make dt global to all Nodes
@@ -84,12 +85,12 @@ function M.new( nodeInfo )
 		--
 		Node.type = hash("selector")
 
-		function Node:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
 
 			-- Search the children and test the results of each action
 			-- Requested. Return results based on the result from that node's Evaluate() function
 			for node = 1, #self.children do
-				local result = self.children[node]:Evaluate(dt)
+				local result = self.children[node]:Evaluate(parent, dt)
 
 				-- Evaluate the node's test using it's own evaluator
 				-- Default response is FAILURE, so test the next node
@@ -121,21 +122,25 @@ function M.new( nodeInfo )
 
 		Node.type = hash("sequence")
 
-		function Node:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
 
 			local anyChildRunning = nil
+			local result = nil
 
 			for node = 1, #self.children do
-				local result = self.children[node]:Evaluate(dt)
+				local result = self.children[node]:Evaluate(parent, dt)
 
 				if result == M.FAILURE then
+					-- Exit sequencing with a failure code
 					return M.FAILURE
 				elseif result == M.SUCCESS then
 					-- Continue testing nodes until all succeed or one fails
 				elseif result == M.RUNNING then
 					return M.RUNNING
 				elseif result == M.TERMINATE then
-					return M.TERMINATE													
+					return M.TERMINATE
+				elseif result == M.CONTINUE then
+					-- Continue testing nodes until all succeed or one fails					
 				else
 					-- Defaults to return SUCCESS
 					return M.SUCCESS
@@ -171,7 +176,7 @@ function M.new( nodeInfo )
 		-------------------------------------------
 		--
 		-------------------------------------------		
-		function Node:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
 			local count = self:getData(self.key)
 
 			if count == nil then
@@ -180,7 +185,7 @@ function M.new( nodeInfo )
 
 			if count < self.max_count then
 				self:setData(self.key, count + 1)
-				return self.child:Evaluate(dt)
+				return self.child:Evaluate(parent, dt)
 			else
 				-- Once failure is determined, the child node never runs again
 				return M.FAILURE
@@ -194,14 +199,15 @@ function M.new( nodeInfo )
 		------------------------------------------------------------------------				
 	elseif nodeType == "random" then
 		-- It would be a good idea to test for children to process
+		Node.children = {}
 		Node.type = hash("random")
 
 		-- Recursively construct child nodes
 		loadChildren(Node, nodeInfo.children)
 
-		function Node:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
 			local node = math.random(#self.children)
-			local result = self.children[node]:Evaluate(dt)
+			local result = self.children[node]:Evaluate(parent, dt)
 
 			if result == M.SUCCESS then
 				return M.SUCCESS
@@ -209,6 +215,8 @@ function M.new( nodeInfo )
 				return M.FAILURE
 			elseif result == M.TERMINATE then
 				return M.TERMINATE			
+			elseif result == M.CONTINUE then
+				return M.CONTINUE				
 			else
 				return M.RUNNING
 			end 
@@ -225,15 +233,17 @@ function M.new( nodeInfo )
 		-- Single child for this Evaluator node
 		Node.child = M.new(nodeInfo.child)
 
-		function Node:Evaluate(dt)
-			local result = self.child:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
+			local result = self.child:Evaluate(parent, dt)
 
 			if result == M.FAILURE then
 				return M.SUCCESS
 			elseif result == M.SUCCESS then
 				return M.FAILURE
 			elseif result == M.TERMINATE then
-				return M.TERMINATE			
+				return M.TERMINATE
+			elseif result == M.CONTINUE then
+				return M.CONTINUE
 			else
 				return M.RUNNING
 			end 
@@ -256,13 +266,15 @@ function M.new( nodeInfo )
 			Node.STATE = M.SUCCESS
 		end
 
-		function Node:Evaluate(dt)
-			local result = self.child:Evaluate(dt)
+		function Node:Evaluate(parent, dt)
+			local result = self.child:Evaluate(parent, dt)
 
 			if result == M.RUNNING then
 				return M.RUNNING
 			elseif result == M.TERMINATE then
-				return M.TERMINATE			
+				return M.TERMINATE	
+			elseif result == M.CONTINUE then
+				return M.CONTINUE
 			else
 				-- Defaults to return SUCCESS or FAILURE
 				return self.STATE
@@ -280,7 +292,7 @@ function M.new( nodeInfo )
 		-------------------------------------
 		-- Evaulator function		
 		-------------------------------------
-		Node.Evaluate = evaluator or function() 
+		Node.Evaluate = evaluator or function(parent, dt) 
 			return M.SUCCESS
 		end
 
