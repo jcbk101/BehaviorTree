@@ -81,8 +81,7 @@ function M.start( self, callback )
 			if self.root then
 				-- node is the master class accessible in all node instances. 
 				-- Use it for dt access as a global variable
-				node.dt = dt 
-				self.root:update() -- [ Tree:update() ]
+				self.root:update(self, dt) -- [ Tree:update(parent, dt) ]
 			end
 		end
 		--]]
