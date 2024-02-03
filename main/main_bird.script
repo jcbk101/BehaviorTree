@@ -172,7 +172,7 @@ local function SetupTree(self)
 	local treeBuilder = {
 		nodeType = "selector",  -- This is the root node
 		children = {
-			{ nodeType = "task", evaluator = doCountDown, arg1 = { name = "countDownTimer", value = 2 }	} ,
+			{ nodeType = "task", evaluator = doCountDown, arg1 = { name = "countDownTimer", value = 5 }	} ,
 			{	
 				nodeType = "sequence",
 				children = { 
