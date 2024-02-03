@@ -5,35 +5,30 @@ local node = require "modules.node"
 -------------------------------------------
 -- Evaluator
 -------------------------------------------
-local function moveToBird(self, dt)
+local function moveToBird(self, parent, dt)
 
-	-- Initialize the variables for this Evaluator
-	if not self.is_init then
-		self.currentWayPoint = 1
-		self.waitTime = 1.0 -- in seconds
-		self.waitCounter = waitTime
-		self.waiting = false
-		self.is_init = true
-		self.speed = 4
+	-- If there is a target already, no need finding a new one
+	if self:getData("target") then
+		-- Don't move to a new target since we are still working at this target
+		return node.SUCCESS
 	end
 
-
 	-- Evaluate 
-	if self.waiting == true then
+	if self.wait then
+		self.wait = self.wait - dt
 
-		self.waitCounter = self.waitCounter - dt;
-
-		if self.waitCounter <= 0.0 then			
-			self.waiting = false
+		if self.wait <= 0.0 then
+			self.wait = nil
+			return node.SUCCESS			
 		end
 
+		return node.RUNNING
 	else
-
-		-- If there is a target already, no need finding a new one
-		local target = self:getData("target")
-		if target then
-			-- Don'tmove to a new target since we are still working at this target
-			return node.SUCCESS
+		-- Initialize the variables for this Evaluator
+		if not self.is_init then
+			self.currentWayPoint = 1
+			self.is_init = true
+			self.speed = 4
 		end
 
 		----------------------------------------------
@@ -42,31 +37,27 @@ local function moveToBird(self, dt)
 		local wp = self.waypoints[ self.currentWayPoint ]
 		local pos = go.get_position()
 
-		if self.walking then
+		if self.flying then
 			if vmath.length( pos - wp ) < self.speed then
 				-- A target was reached
 				wp.z = pos.z
 				go.set_position(wp)
-				self.waitCounter = self.waitTime
-				self.waiting = true
+				self.wait = 1.0
 
 				-- Prepare the next target
 				self.currentWayPoint = math.fmod(self.currentWayPoint + 1, #self.waypoints)
 				self.currentWayPoint = math.max(1, self.currentWayPoint)
-
-				self.walking = nil
-				self.move.x, self.move.y = 0, 0
+				self.flying = nil
+				-- parent points to the instance's 'self' table
+				parent.move.x, parent.move.y = 0, 0
 
 				-- Set the target
 				self:setData("target", self.currentWayPoint)
 
 				return node.SUCCESS
-			else
-				-- Move the object
-				pos = pos + self.move
-				go.set_position(pos)
 			end
-		elseif not self.walking then
+
+		elseif not self.flying then
 
 			local angle = math.atan2(pos.x - wp.x, wp.y - pos.y)
 
@@ -75,12 +66,16 @@ local function moveToBird(self, dt)
 
 			-- Movement amount normalized			
 			local test = ( wp - pos )
-			self.move = vmath.normalize( wp - pos ) * self.speed
-			self.move.z = 0
-			self.walking = true
+			local move = vmath.normalize( wp - pos ) * self.speed
 
-			-- determine distance and use it for scaling purposes
+			-- Move the instance bird
+			parent.move.x, parent.move.y, parent.move.z = move.x, move.y, 0
+			self.flying = true
+
+			-- Determine distance and use it for scaling purposes
 			local distance = vmath.length(wp - pos) / self.speed
+
+			-- Animate the bird flying higher and then back down
 			go.animate(".", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(2, 2, 1), go.EASING_LINEAR, distance / 60.0)
 
 			-- Show the bird flying
@@ -95,35 +90,40 @@ end
 -------------------------------------------
 -- Evaluator
 -------------------------------------------
-local function eatBirdSeed(self, dt)
+local function eatBirdSeed(self, parent, dt)
+
+	if not self:getData("target") then
+		return node.FAILURE
+	end
 
 	-- Initialize the variables for this Evaluator	
-	if not self.is_init then
+	if not self.is_active then
 		self.eat_loops = 2
-		self.is_init = true
+		self.is_active = true
 	end
 
 	-- Evaluate 
 	if not self.is_eating then
 		self.is_eating = true
-		self.eatTimer = 1.0
+		self.wait = 1.0
 		sprite.play_flipbook("#sprite", hash("peck"), 
 		function()
 			sprite.play_flipbook("#sprite", hash("idle")) 			
 		end)
 	else
 		-- Time counter
-		self.eatTimer = self.eatTimer - dt
+		self.wait = self.wait - dt
 
-		if self.eatTimer <= 0.0 then
+		if self.wait <= 0.0 then
 			self.is_eating = nil
-			self.eatTimer = nil
+			self.wait = nil
 
 			-- Clear the target so player can move to the next one
 			self.eat_loops = self.eat_loops - 1
 			if self.eat_loops <= 0 then
-				self.is_init = nil
+				self.is_active = nil
 				self:clearData("target")
+				return node.SUCCESS
 			end
 		end
 	end
@@ -135,7 +135,7 @@ end
 -------------------------------------------
 -- Evaluator
 -------------------------------------------
-local function doCountDown(self, dt)
+local function doCountDown(self, parent, dt)
 
 	if not self.countDownTimer then
 		self.countDownTimer = 1.0
@@ -172,12 +172,8 @@ local function SetupTree(self)
 	local treeBuilder = {
 		nodeType = "selector",  -- This is the root node
 		children = {
-			[1] = {
-				nodeType = "task", 
-				evaluator = doCountDown,
-				arg1 = { name = "countDownTimer", value = .50 }
-			} ,
-			[2] = {
+			{ nodeType = "task", evaluator = doCountDown, arg1 = { name = "countDownTimer", value = 2 }	} ,
+			{	
 				nodeType = "sequence",
 				children = { 
 					{ nodeType = "task", evaluator = moveToBird, arg1 = { name = "waypoints", value = self.waypoints } },
@@ -200,6 +196,8 @@ function init(self)
 	-- And are sent via messaging so it gets start in the on_message() function
 	-- self.root = tree.start(self, SetupTree )		
 	label.set_text("/time#counter", "")
+	-- Movement vector
+	self.move = vmath.vector3(0)
 end
 
 
@@ -210,12 +208,15 @@ function update(self, dt)
 
 	-- Call the update function so it triggers a constant Evaluation()	
 	if self.root then
-		-- Call the Tree's update function
-		self.root:update(dt)
+		-- Call the Tree's update function: args = self=this instance, dt = delta time
+		self.root:update(self, dt)
 	end
 
 	-- Each 'Evaluator()' function needs to control positioning
-	local pos = go.get_position()
+	local pos = go.get_position() + self.move
+
+	-- Bird position
+	go.set_position(pos)
 
 	-- Camera adjust acording to the scripted position of this GO
 	go.set_position( vmath.vector3(pos.x - 568, pos.y - 320, 0), "camera")
@@ -238,5 +239,5 @@ end
 
 function final(self)
 	self.waypoints = nil
-	node.final() 
+	node.final(self) 
 end

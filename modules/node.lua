@@ -13,16 +13,11 @@ M.FAILURE = 3
 M.CONTINUE = 4
 M.TERMINATE = -1
 
--- A way to make dt global to all Nodes
-M.dt = 0.0
-
--- Table containing a dictionary of actions in <KEY, OBJECT> format
--- This needs to be cleared per level, level reset
-M.sharedData = {}
-
 -- Need to init the random number generator
 math.randomseed(os.clock())
 
+-- Temp for now
+M.sharedData = {}
 
 -------------------------------------
 -- Load children per Node
@@ -64,6 +59,8 @@ end
 -- is ONLY for tasks created
 ----------------------------------------------------------------------
 function M.new( nodeInfo )
+
+	--print(nodeInfo.nodeType)
 
 	-- Create a new state each time and return to the requestor
 	local Node = {}
@@ -253,7 +250,7 @@ function M.new( nodeInfo )
 		-- Node always returns a constant state: SUCCESS or FAILURE 
 		-- Only a single child allowed
 		------------------------------------------------------------------------				
-	elseif nodeType == "success" or nodeType == "failure" then
+	elseif nodeType == "success" or nodeType == "failure" or nodeType == "continue" then
 		-- It would be a good idea to test for children to process
 		-- Single child for this Evaluator node
 		Node.child = M.new(nodeInfo.child)		
@@ -262,6 +259,8 @@ function M.new( nodeInfo )
 
 		if Node.type == hash("failure") then
 			Node.STATE = M.FAILURE
+		elseif Node.type == hash("continue") then
+			Node.STATE = M.CONTINUE
 		else
 			Node.STATE = M.SUCCESS
 		end
@@ -273,14 +272,12 @@ function M.new( nodeInfo )
 				return M.RUNNING
 			elseif result == M.TERMINATE then
 				return M.TERMINATE	
-			elseif result == M.CONTINUE then
-				return M.CONTINUE
 			else
 				-- Defaults to return SUCCESS or FAILURE
 				return self.STATE
 			end 
 		end
-	else
+	elseif nodeType == "task" then
 		------------------------------------------------------------------------
 		--
 		-- Default Evaluator. Replaced by a function used as an evaluator within
@@ -302,55 +299,25 @@ function M.new( nodeInfo )
 		-- As long as they are in numerical order
 		-------------------------------------------
 		loadArguments(Node, nodeInfo)
-	end
-
-
-	----------------------------------------------
-	-- Blackboard data access for:
-	-- Set data
-	----------------------------------------------			
-	if nodeType == "task" or nodeType == "limiter" then
-		function Node:setData(key, value)
-			M.sharedData[key] = value
-		end				
-
-		-------------------------------------
-		-- Get data
-		-------------------------------------
-		function Node:getData( key )
-			-- Test to see if the value is at this level
-			if M.sharedData[key] ~= nil then
-				return M.sharedData[key]
-			end
-			-- Upon failure to locate a valid node, return nil
-			return nil
-		end
-
-		------------------------------
-		-- Clear data
-		------------------------------
-		function Node:clearData( key )
-			-- Test to see if the value is at this level
-			if M.sharedData[key] ~= nil then
-				M.sharedData[key] = nil
-				return true
-			end
-			-- Upon failure to locate a valid node, return nil
-			return false		
-		end		
+	else
+		-- Node not supported. report error
+		assert(nil, "Error: '" .. nodeType .. "' is not supported")
 	end
 
 	-- Return the constructed Node
 	return Node
 end
 
+
 ----------------------------------
 -- Node clean up
 ----------------------------------
 function M.final(self)
-	for key in pairs(M.sharedData) do
-		M.sharedData[key] = nil
+	-- Test to see if the value is at this level
+	for key, obj in pairs(self.root.sharedData) do
+		self.root.sharedData[key] = nil
 	end
+	-- Other cleanup done here
 end
 
 return M
