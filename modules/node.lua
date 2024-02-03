@@ -16,9 +16,6 @@ M.TERMINATE = -1
 -- Need to init the random number generator
 math.randomseed(os.clock())
 
--- Temp for now
-M.sharedData = {}
-
 -------------------------------------
 -- Load children per Node
 -------------------------------------
